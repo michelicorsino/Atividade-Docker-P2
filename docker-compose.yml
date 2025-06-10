@@ -1,0 +1,74 @@
+version: "3.8"
+
+services:
+  # Banco de dados PostgreSQL
+  postgres:
+    image: postgres:15
+    container_name: PostgreSQL
+    restart: always
+    environment:
+      POSTGRES_DB: startup_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - projeto
+    command: >
+      postgres -c listen_addresses='*'
+               -c max_connections=100
+               -c shared_buffers=256MB
+
+  # Servidor web com PHP e Apache
+  web:
+    image: php:8.2-apache
+    container_name: Servidor_Apache
+    restart: always
+    ports:
+      - "8888:80"
+    volumes:
+      - ./web:/var/www/html
+    depends_on:
+      - postgres
+    networks:
+      - projeto
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=startup_db
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=admin123
+    command: >
+      bash -c "
+      apt-get update &&
+      apt-get install -y libpq-dev &&
+      docker-php-ext-install pdo pdo_pgsql &&
+      apache2-foreground
+      "
+
+  # Interface gráfica PgAdmin
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: PGAdmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres
+    networks:
+      - projeto
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+
+networks:
+  projeto:
+    driver: bridge
